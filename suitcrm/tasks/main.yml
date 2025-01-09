@@ -1,0 +1,158 @@
+# suitecrm-role/tasks/main.yml
+---
+- name: Check if SuiteCRM is already installed
+  stat:
+    path: "{{ suitecrm_install_dir }}/index.php"
+  register: suitecrm_installed 
+
+- name: Update package cache
+  apt:
+    update_cache: yes
+  when: not suitecrm_installed.stat.exists
+
+- name: Install Python MySQL library
+  apt:
+    name: python3-pymysql
+    state: present
+  when: not suitecrm_installed.stat.exists
+
+
+- name: Install required packages
+  apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - "{{ php_packages }}"
+    - "{{ web_server_packages }}"
+    - "{{ mysql_server_packages }}"
+  when: not suitecrm_installed.stat.exists
+
+- name: Start and enable MariaDB service
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+  when: not suitecrm_installed.stat.exists
+
+# - name: Secure MariaDB installation
+#   command: >
+#     mysql_secure_installation <<EOF
+#     n
+#     y
+#     y
+#     y
+#     y
+#     EOF
+#   ignore_errors: yes
+
+- name: Enable Apache modules
+  apache2_module:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - rewrite
+    - headers
+  when: not suitecrm_installed.stat.exists
+
+- name: Download SuiteCRM
+  get_url:
+    url: "{{ suitecrm_download_url }}"
+    dest: /tmp/suitecrm.zip
+  when: not suitecrm_installed.stat.exists
+
+- name: Extract SuiteCRM
+  unarchive:
+    src: /tmp/suitecrm.zip
+    dest: /tmp
+    remote_src: yes
+  when: not suitecrm_installed.stat.exists
+
+- name: Ensure the SuiteCRM installation directory is empty
+  file:
+    path: "{{ suitecrm_install_dir }}"
+    state: absent
+  when: not suitecrm_installed.stat.exists
+
+- name: Move SuiteCRM to web root
+  command: mv /tmp/SuiteCRM-{{ suitecrm_version }} {{ suitecrm_install_dir }}
+  when: not suitecrm_installed.stat.exists
+
+- name: Set ownership and permissions
+  file:
+    path: "{{ suitecrm_install_dir }}"
+    state: directory
+    recurse: yes
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  when: not suitecrm_installed.stat.exists
+
+- name: Configure Apache virtual host
+  template:
+    src: suitecrm.conf.j2
+    dest: /etc/apache2/sites-available/suitecrm.conf
+  when: not suitecrm_installed.stat.exists
+
+- name: Disable default Apache site
+  command: a2dissite 000-default.conf   
+  when: not suitecrm_installed.stat.exists               
+
+- name: Restart SuiteCRM site
+  command: a2ensite suitecrm.conf
+  notify:
+    - Restart Apache
+
+
+- name: Configure MariaDB root user for password authentication
+  shell: |
+    mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ root_password }}';"
+    mysql -u root -p'{{ root_password }}' -e "FLUSH PRIVILEGES;"
+  args:
+    executable: /bin/bash
+  when: not suitecrm_installed.stat.exists
+
+- name: Create a new MariaDB admin user
+  shell: |
+    mysql -u root -e "CREATE USER 'admin'@'localhost' IDENTIFIED BY '{{ admin_password }}';"
+    mysql -u root -e "GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' WITH GRANT OPTION;"
+    mysql -u root -e "FLUSH PRIVILEGES;"
+  args:
+    executable: /bin/bash
+  register: admin_user_created
+  when: not suitecrm_installed.stat.exists
+
+- name: Create SuiteCRM database
+  mysql_db:
+    name: "{{ database_name }}"
+    state: present
+    login_user: admin
+    login_password: "{{ admin_password }}"
+  when: not suitecrm_installed.stat.exists
+
+- name: Create SuiteCRM database user
+  shell: |
+    mysql -u root -e "CREATE USER 'suitecrm'@'localhost' IDENTIFIED BY '{{ database_password }}';"
+    mysql -u root -e "GRANT ALL PRIVILEGES ON suitcrm.* TO 'suietcrm'@'localhost' WITH GRANT OPTION;"
+    mysql -u root -e "FLUSH PRIVILEGES;"
+  args:
+    executable: /bin/bash
+  register: database_user_created
+  when: not suitecrm_installed.stat.exists
+
+  # mysql_user:
+  #   name: "{{ database_user }}"
+  #   password: "{{ database_password }}"
+  #   priv: "{{ database_name }}.*:ALL"
+  #   state: present
+  #   login_user: admin
+  #   login_password: "{{ admin_password }}"
+  #   plugin: mysql_native_password
+
+
+
+- name: Ensure Apache is running
+  service:
+    name: apache2
+    state: started
+    enabled: yes
+

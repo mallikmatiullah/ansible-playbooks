@@ -1,0 +1,11 @@
+galaxy_info:
+  author: Malik Matiullah
+  description: Ansible role to set up Gitea on Debian 12 with SQLite backend.
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Debian
+      versions:
+        - 12
+
+dependencies: []

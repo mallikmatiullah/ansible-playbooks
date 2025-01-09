@@ -1,0 +1,126 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name: git
+    state: present
+
+- name: Check Git version
+  ansible.builtin.command:
+    cmd: git --version
+  register: git_version_check
+  changed_when: false
+  failed_when: "'version' not in git_version_check.stdout or git_version_check.stdout.split()[2] is version('2.0', '<')"
+
+- name: Create git group
+  ansible.builtin.group:
+    name: "{{ gitea_group }}"
+    system: yes
+
+- name: Create Gitea user
+  ansible.builtin.user:
+    name: "{{ gitea_user }}"
+    group: "{{ gitea_group }}"
+    system: yes
+    shell: /bin/bash
+    comment: 'Gitea Version Control'
+    home: "{{ gitea_home }}"
+    create_home: yes
+
+- name: Create required directory structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ gitea_user }}"
+    group: "{{ gitea_group }}"
+    mode: '0755'
+  loop:
+    - "{{ gitea_home }}"
+    - "{{ gitea_data_dir }}"
+    - "{{ gitea_log_dir }}"
+    - "{{ gitea_config_dir }}"
+
+- name: Check if Gitea is already installed
+  ansible.builtin.command:
+    cmd: "{{ gitea_install_dir }}/gitea --version"
+  register: gitea_installed
+  failed_when: gitea_installed.rc != 0
+  changed_when: false
+  ignore_errors: true
+
+- name: Download Gitea binary to temporary directory
+  ansible.builtin.get_url:
+    url: "{{ gitea_download_url }}"
+    dest: "/tmp/gitea-{{ gitea_version }}"
+    mode: '0755'
+  when: gitea_installed is not defined or gitea_version not in gitea_installed.stdout
+
+- name: Move Gitea binary to installation directory
+  ansible.builtin.command:
+    cmd: mv /tmp/gitea-{{ gitea_version }} {{ gitea_install_dir }}/gitea
+  args:
+    creates: "{{ gitea_install_dir }}/gitea"
+  when: gitea_installed is not defined or gitea_version not in gitea_installed.stdout
+
+- name: Set ownership and permissions for Gitea binary
+  ansible.builtin.file:
+    path: "{{ gitea_install_dir }}/gitea"
+    owner: "{{ gitea_user }}"
+    group: "{{ gitea_group }}"
+    mode: '0750'
+
+
+- name: Set Gitea working directory environment variable
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    line: "GITEA_WORK_DIR={{ gitea_home }}"
+    state: present
+
+- name: Copy app.ini template
+  ansible.builtin.template:
+    src: app.ini.j2
+    dest: "{{ gitea_config_dir }}/app.ini"
+    owner: "{{ gitea_user }}"
+    group: "{{ gitea_group }}"
+    mode: '0640'
+
+- name: Install SQLite (for database management utilities)
+  ansible.builtin.package:
+    name: sqlite3
+    state: present
+
+
+- name: Create Gitea service file
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/gitea.service
+    content: |
+      [Unit]
+      Description=Gitea (Git with a cup of tea)
+      After=syslog.target
+      After=network.target
+
+      [Service]
+      RestartSec=2s
+      Type=simple
+      User={{ gitea_user }}
+      Group={{ gitea_group }}
+      WorkingDirectory={{ gitea_home }}
+      ExecStart={{ gitea_install_dir }}/gitea web -c {{ gitea_config_dir }}/app.ini
+      Restart=always
+      Environment=USER={{ gitea_user }} HOME={{ gitea_home }}
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: '0644'
+
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable and start Gitea service
+  ansible.builtin.systemd:
+    name: gitea
+    enabled: yes
+    state: started

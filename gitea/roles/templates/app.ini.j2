@@ -1,0 +1,9 @@
+[server]
+APP_NAME = Gitea
+RUN_USER = {{ gitea_user }}
+RUN_MODE = prod
+ROOT_URL = http://localhost:3000/
+
+[database]
+DB_TYPE = sqlite3
+PATH = {{ gitea_data_dir }}/gitea.db

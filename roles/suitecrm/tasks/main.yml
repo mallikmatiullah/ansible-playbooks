@@ -1,0 +1,64 @@
+
+---
+
+- name: Check if SuiteCRM is already installed
+  stat:
+    path: "{{ suitecrm_install_dir }}/index.php"
+  register: suitecrm_installed 
+
+- name: Update package cache
+  apt:
+    update_cache: yes
+
+
+- name: Install Php packages
+  apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - "{{ php_packages }}"
+  when: not suitecrm_installed.stat.exists
+
+- name: Download SuiteCRM
+  get_url:
+    url: "{{ suitecrm_download_url }}"
+    dest: /tmp/suitecrm.zip
+  when: not suitecrm_installed.stat.exists
+
+- name: Extract SuiteCRM
+  unarchive:
+    src: /tmp/suitecrm.zip
+    dest: /tmp
+    remote_src: yes
+  when: not suitecrm_installed.stat.exists
+
+- name: Ensure the SuiteCRM installation directory is empty
+  file:
+    path: "{{ suitecrm_install_dir }}"
+    state: absent
+  when: not suitecrm_installed.stat.exists
+
+- name: Move SuiteCRM to web root
+  command: mv /tmp/SuiteCRM-{{ suitecrm_version }} {{ suitecrm_install_dir }}
+  when: not suitecrm_installed.stat.exists
+
+- name: Set ownership and permissions
+  file:
+    path: "{{ suitecrm_install_dir }}"
+    state: directory
+    recurse: yes
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  when: not suitecrm_installed.stat.exists
+
+- name: Enable PHP 8.2 FPM configuration
+  shell: |
+    a2enconf php8.2-fpm
+    a2enmod proxy_fcgi
+
+
+- name: Restart SuiteCRM site
+  command: a2ensite suitecrm.conf
+  notify:
+    - Restart Apache

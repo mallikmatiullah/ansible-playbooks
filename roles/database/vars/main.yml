@@ -1,0 +1,16 @@
+# suitecrm-role/vars/main.yml
+---
+
+root_password: "secure_root_password"
+database_name: "suitecrm"
+database_user: "suitecrm"
+database_password: "secure_password"
+
+
+mariadb_server_packages:
+  - mariadb-server
+  - mariadb-client
+
+
+
+

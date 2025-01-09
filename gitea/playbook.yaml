@@ -1,0 +1,6 @@
+---
+- name: Deploy Gitea on Debian 12
+  hosts: gitea_server
+  become: yes
+  roles:
+    - .

@@ -1,0 +1,65 @@
+
+---
+
+- name: Check if SuiteCRM is already installed
+  stat:
+    path: "{{ suitecrm_install_dir }}/index.php"
+  register: suitecrm_installed 
+
+- name: Update package cache
+  apt:
+    update_cache: yes
+
+- name: Install Python MySQL library
+  apt:
+    name: python3-pymysql
+    state: present
+  when: not suitecrm_installed.stat.exists
+
+- name: Install Mariadb packages
+  apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - "{{ mariadb_server_packages }}"
+  when: not suitecrm_installed.stat.exists
+
+- name: Start and enable MariaDB service
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+  when: not suitecrm_installed.stat.exists
+
+
+
+- name: Configure MariaDB root user for password authentication
+  mysql_user:
+    name: root
+    password: "{{ root_password }}"
+    state: present
+    host: localhost
+    login_user: root
+    login_password: "{{ root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  when: not suitecrm_installed.stat.exists
+
+
+- name: Create SuiteCRM database
+  mysql_db:
+    name: "{{ database_name }}"
+    state: present
+    login_user: root
+    login_password: "{{ root_password }}"
+  when: not suitecrm_installed.stat.exists
+
+- name: Create an SuiteCRM DB User and Only access to suitecrm database
+  mysql_user:
+    name: "{{ database_name }}"
+    password: "{{ database_password}}"
+    priv: "suitecrm.*:ALL,GRANT"
+    state: present
+    host: localhost
+    login_user: root
+    login_password: "{{ root_password }}"
+  when: not suitecrm_installed.stat.exists

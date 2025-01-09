@@ -1,0 +1,24 @@
+# suitecrm-role/vars/main.yml
+---
+suitecrm_version: "7.14.6"
+suitecrm_download_url: "https://github.com/salesagility/SuiteCRM/releases/download/v7.14.6/SuiteCRM-7.14.6.zip"
+suitecrm_install_dir: "/var/www/html/suitecrm"
+
+
+
+php_packages:
+  - php
+  - php-mysql
+  - php-curl
+  - php-gd
+  - php-xml
+  - php-mbstring
+  - php-zip
+  - php8.2-fpm
+
+
+web_server_packages:
+  - apache2
+  - unzip
+  - curl
+

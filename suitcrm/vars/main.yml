@@ -1,0 +1,37 @@
+# suitecrm-role/vars/main.yml
+---
+suitecrm_version: "7.14.6"
+suitecrm_download_url: "https://github.com/salesagility/SuiteCRM/releases/download/v7.14.6/SuiteCRM-7.14.6.zip"
+suitecrm_install_dir: "/var/www/html/suitecrm"
+database_name: "suitecrm"
+database_user: "suitecrm"
+database_password: "secure_password"
+admin_email: "admin@example.com"
+
+
+php_packages:
+  - php
+  - php-mysql
+  - php-curl
+  - php-gd
+  - php-xml
+  - php-mbstring
+  - php-zip
+  - php8.2-fpm
+
+
+web_server_packages:
+  - apache2
+  - unzip
+  - curl
+
+
+mysql_server_packages:
+  - mariadb-server
+  - mariadb-client
+db_admin_user: suitecrm_admin
+db_admin_password: admin_password
+
+root_password: "secure_root_password"
+admin_password: "secure_admin_password"
+
